@@ -1,0 +1,231 @@
+@page "/"
+@inject IconGeneratorService IconService
+@inject IJSRuntime JS
+
+<PageTitle>Yoto Icon Generator</PageTitle>
+
+<h2 class="mb-4">Yoto Icon Generator</h2>
+<p class="text-muted mb-4">Generate 16x16 pixel icons for Yoto music player tracks.</p>
+
+<div class="row g-3 mb-4">
+    <div class="col-6">
+        <label class="form-label" for="label">Label (max 4 chars)</label>
+        <input id="label" type="text" class="form-control @LabelValidationClass"
+               maxlength="4" value="@Label"
+               @oninput="OnLabelChanged" placeholder="COG2" />
+        @if (!string.IsNullOrEmpty(_labelError))
+        {
+            <div class="text-danger small mt-1">@_labelError</div>
+        }
+    </div>
+    <div class="col-6">
+        <label class="form-label" for="trackCount">Number of tracks</label>
+        <input id="trackCount" type="number" class="form-control"
+               min="1" max="99" value="@TrackCount"
+               @oninput="OnTrackCountChanged" />
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6">
+        <label class="form-label" for="folderName">Folder name in ZIP</label>
+        <input id="folderName" type="text" class="form-control"
+               value="@FolderName"
+               @oninput="OnFolderNameChanged" placeholder="My Album - Yoto Icons" />
+    </div>
+    <div class="col-6">
+        <label class="form-label" for="color">Icon color</label>
+        <div class="d-flex align-items-center gap-2">
+            <input id="color" type="color" class="form-control form-control-color"
+                   value="@ColorHex"
+                   @oninput="OnColorChanged" />
+            <span class="text-muted small">@ColorHex</span>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12">
+        <label class="form-label">Preview</label>
+        <div class="d-flex align-items-center gap-3">
+            <div class="preview-container">
+                @if (!string.IsNullOrEmpty(_previewDataUri))
+                {
+                    <img src="@_previewDataUri" class="icon-preview" alt="Icon preview" />
+                }
+                else
+                {
+                    <div class="icon-preview-placeholder">?</div>
+                }
+            </div>
+            <div>
+                <label class="form-label small mb-1" for="previewTrack">Preview track #</label>
+                <input id="previewTrack" type="number" class="form-control form-control-sm"
+                       style="width: 80px;" min="1" max="@TrackCount"
+                       value="@PreviewTrack"
+                       @oninput="OnPreviewTrackChanged" />
+            </div>
+            <div class="text-muted small">
+                <div>Actual size: 16x16px</div>
+                <div>Shown at: 128x128px</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mb-4">
+    <button class="btn btn-primary" disabled="@(!IsValid || _generating)"
+            @onclick="OnDownloadClicked">
+        @if (_generating)
+        {
+            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+            <span>Generating...</span>
+        }
+        else
+        {
+            <span>Download ZIP (@TrackCount icons)</span>
+        }
+    </button>
+</div>
+
+@code {
+    private string Label { get; set; } = "COG2";
+    private int TrackCount { get; set; } = 20;
+    private string FolderName { get; set; } = "COG2 - Yoto Icons";
+    private string ColorHex { get; set; } = "#00C8FF";
+    private int PreviewTrack { get; set; } = 1;
+
+    private string _previewDataUri = "";
+    private string _labelError = "";
+    private bool _generating;
+    private bool _folderManuallyEdited;
+
+    private string LabelValidationClass =>
+        string.IsNullOrEmpty(Label) || !string.IsNullOrEmpty(_labelError) ? "is-invalid" : "";
+
+    private bool IsValid =>
+        !string.IsNullOrEmpty(Label) &&
+        string.IsNullOrEmpty(_labelError) &&
+        TrackCount >= 1 && TrackCount <= 99 &&
+        !string.IsNullOrEmpty(FolderName);
+
+    protected override void OnInitialized()
+    {
+        UpdatePreview();
+    }
+
+    private void OnLabelChanged(ChangeEventArgs e)
+    {
+        Label = (e.Value?.ToString() ?? "").ToUpperInvariant();
+        ValidateLabel();
+
+        // Auto-update folder name unless user has manually edited it
+        if (!_folderManuallyEdited)
+        {
+            FolderName = string.IsNullOrEmpty(Label) ? "" : $"{Label} - Yoto Icons";
+        }
+
+        UpdatePreview();
+    }
+
+    private void OnTrackCountChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int val))
+        {
+            TrackCount = Math.Clamp(val, 1, 99);
+            if (PreviewTrack > TrackCount)
+            {
+                PreviewTrack = TrackCount;
+            }
+        }
+        UpdatePreview();
+    }
+
+    private void OnFolderNameChanged(ChangeEventArgs e)
+    {
+        FolderName = e.Value?.ToString() ?? "";
+        _folderManuallyEdited = true;
+    }
+
+    private void OnColorChanged(ChangeEventArgs e)
+    {
+        ColorHex = e.Value?.ToString() ?? "#00C8FF";
+        UpdatePreview();
+    }
+
+    private void OnPreviewTrackChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int val))
+        {
+            PreviewTrack = Math.Clamp(val, 1, TrackCount);
+        }
+        UpdatePreview();
+    }
+
+    private void ValidateLabel()
+    {
+        _labelError = "";
+        if (string.IsNullOrEmpty(Label)) return;
+
+        foreach (char c in Label)
+        {
+            if (!GlyphData.IsSupported(c))
+            {
+                _labelError = $"Character '{c}' is not supported. Use A-Z and 0-9.";
+                return;
+            }
+        }
+
+        int width = PixelFontRenderer.MeasureText(Label);
+        if (width > 16)
+        {
+            _labelError = $"Label is {width}px wide, max is 16px.";
+        }
+    }
+
+    private void UpdatePreview()
+    {
+        if (string.IsNullOrEmpty(Label) || !string.IsNullOrEmpty(_labelError))
+        {
+            _previewDataUri = "";
+            return;
+        }
+
+        ParseColor(out byte r, out byte g, out byte b);
+        _previewDataUri = IconService.GeneratePreviewDataUri(Label, PreviewTrack, r, g, b);
+    }
+
+    private async Task OnDownloadClicked()
+    {
+        if (!IsValid) return;
+        _generating = true;
+        StateHasChanged();
+
+        // Yield to let the UI update with the spinner
+        await Task.Delay(50);
+
+        ParseColor(out byte r, out byte g, out byte b);
+        var zipBytes = IconService.GenerateZip(Label, TrackCount, FolderName, r, g, b);
+        var base64 = Convert.ToBase64String(zipBytes);
+        var filename = $"{FolderName}.zip";
+
+        await JS.InvokeVoidAsync("downloadFile", filename, base64);
+
+        _generating = false;
+    }
+
+    private void ParseColor(out byte r, out byte g, out byte b)
+    {
+        var hex = ColorHex.TrimStart('#');
+        if (hex.Length == 6)
+        {
+            r = Convert.ToByte(hex[..2], 16);
+            g = Convert.ToByte(hex[2..4], 16);
+            b = Convert.ToByte(hex[4..6], 16);
+        }
+        else
+        {
+            r = 0; g = 200; b = 255; // fallback to cyan
+        }
+    }
+}
