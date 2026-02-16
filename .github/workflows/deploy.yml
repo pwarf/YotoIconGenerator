@@ -31,6 +31,9 @@ jobs:
       - name: Publish
         run: dotnet publish -c Release -o output
 
+      - name: Rewrite base href for GitHub Pages
+        run: sed -i 's|<base href="/" />|<base href="/YotoIconGenerator/" />|g' output/wwwroot/index.html
+
       - name: Add .nojekyll
         run: touch output/wwwroot/.nojekyll
 

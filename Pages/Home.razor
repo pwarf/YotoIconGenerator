@@ -5,14 +5,14 @@
 <PageTitle>Yoto Icon Generator</PageTitle>
 
 <h2 class="mb-4">Yoto Icon Generator</h2>
-<p class="text-muted mb-4">Generate 16x16 pixel icons for Yoto music player tracks.</p>
+<p class="text-muted mb-4">Generate 16x16 pixel icons for Yoto music player tracks on <a href="https://my.yotoplay.com/" target="_blank">custom cards</a>.</p>
 
 <div class="row g-3 mb-4">
     <div class="col-6">
         <label class="form-label" for="label">Label (max 4 chars)</label>
         <input id="label" type="text" class="form-control @LabelValidationClass"
                maxlength="4" value="@Label"
-               @oninput="OnLabelChanged" placeholder="COG2" />
+               @oninput="OnLabelChanged" placeholder="B+R" />
         @if (!string.IsNullOrEmpty(_labelError))
         {
             <div class="text-danger small mt-1">@_labelError</div>
@@ -89,9 +89,9 @@
 </div>
 
 @code {
-    private string Label { get; set; } = "COG2";
+    private string Label { get; set; } = "B+R";
     private int TrackCount { get; set; } = 20;
-    private string FolderName { get; set; } = "COG2 - Yoto Icons";
+    private string FolderName { get; set; } = "B+R - Yoto Icons";
     private string ColorHex { get; set; } = "#00C8FF";
     private int PreviewTrack { get; set; } = 1;
 
@@ -171,7 +171,7 @@
         {
             if (!GlyphData.IsSupported(c))
             {
-                _labelError = $"Character '{c}' is not supported. Use A-Z and 0-9.";
+                _labelError = $"Character '{c}' is not supported. Use A-Z, 0-9, space, - . , ' + !";
                 return;
             }
         }
